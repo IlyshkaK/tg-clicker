@@ -5,7 +5,7 @@
 
 import { verifyInitData } from "./_tg_verify.js";
 
-let memory = globalThis.__LEADER__ ?? (globalThis.__LEADER__ = []);
+let memory = globalThis.__LEADER__ ?? (globalThis.__LEADER__ = new Map());
 
 function clampInt(x, min, max) {
   const n = Number(x);
@@ -48,11 +48,11 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok:true, items: data.map(x => ({ name:x.name, score:x.score })), mode:"supabase" });
       }
 
-      const items = [...memory]
-        .sort((a,b)=> b.score - a.score || a.ts - b.ts)
-        .slice(0, limit)
-        .map(x=>({ name:x.name, score:x.score }));
-      return res.status(200).json({ ok:true, items, mode:"memory" });
+      const items = [...memory.values()]
+  .sort((a,b)=> b.score - a.score || a.ts - b.ts)
+  .slice(0, limit)
+  .map(x=>({ name:x.name, score:x.score }));
+return res.status(200).json({ ok:true, items, mode:"memory" });
     }
 
     if (req.method === "POST") {
@@ -69,14 +69,35 @@ export default async function handler(req, res) {
 
       const supa = await trySupabase();
       if (supa) {
-        const { error } = await supa.from("leaderboard").insert({ user_id: userId, name, score });
+        const { data: existing, error: selErr } = await supa
+  .from("leaderboard")
+  .select("score")
+  .eq("user_id", userId)
+  .maybeSingle();
+if (selErr) throw selErr;
+if (!existing || score > existing.score) {
+  const { error } = await supa
+    .from("leaderboard")
+    .upsert({ user_id: userId, name, score }, { onConflict: "user_id" });
+  if (error) throw error;
+} else if (existing && name) {
+  const { error } = await supa
+    .from("leaderboard")
+    .upsert({ user_id: userId, name, score: existing.score }, { onConflict: "user_id" });
+  if (error) throw error;
+}
         if (error) throw error;
         return res.status(200).json({ ok:true, stored:true, mode:"supabase", verify:v.mode });
       }
 
-      memory.push({ userId, name, score, ts: Date.now() });
-      if (memory.length > 5000) memory = memory.slice(-2000);
-      return res.status(200).json({ ok:true, stored:true, mode:"memory", verify:v.mode });
+      const prev = memory.get(userId);
+if (!prev || score > prev.score) {
+  memory.set(userId, { userId, name, score, ts: Date.now() });
+} else if (prev && name !== prev.name) {
+  // keep best score, update name
+  memory.set(userId, { ...prev, name });
+}
+return res.status(200).json({ ok:true, stored:true, mode:"memory", verify:v.mode });
     }
 
     res.setHeader("Allow", "GET, POST");
