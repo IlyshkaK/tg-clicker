@@ -35,6 +35,12 @@
     .btn:disabled{opacity:.45;cursor:not-allowed}
     .split{display:grid;grid-template-columns:1fr;gap:10px}
     @media(min-width:520px){ .split{grid-template-columns:1fr 1fr;} }
+    .leader{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:13px; line-height:1.45; white-space:pre}
+    .statsBig{font-size:15px;line-height:1.55}
+    .statsGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+    .statBox{background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px}
+    .statVal{font-weight:900;font-size:18px;margin-top:2px}
+
     .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;background:rgba(0,0,0,.65);
       border:1px solid rgba(255,255,255,.10);padding:10px 12px;border-radius:14px;font-size:13px;opacity:0;transition:opacity .18s}
     .toast.show{opacity:1}
@@ -76,53 +82,39 @@
 
   <div class="space"></div>
 
-  <div class="split">
-    <div class="card">
-      <div class="row" style="justify-content:space-between;align-items:flex-start">
-        <div>
-          <b>Ежедневная награда</b>
-          <div class="muted" style="font-size:13px;margin-top:4px" id="dailyInfo">—</div>
-        </div>
-        <button class="btn" id="btnClaim">Забрать</button>
-      </div>
-      <div class="space"></div>
-      <div class="muted" style="font-size:13px">Чем больше стрик, тем больше награда.</div>
-    </div>
-
-    <div class="card">
-      <div class="row" style="justify-content:space-between;align-items:flex-start">
-        <div>
-          <b>Престиж</b>
-          <div class="muted" style="font-size:13px;margin-top:4px" id="prestInfo">—</div>
-        </div>
-        <button class="btn" id="btnPrestige">Сделать престиж</button>
-      </div>
-      <div class="space"></div>
-      <div class="muted" style="font-size:13px">Престиж сбрасывает апгрейды, но даёт постоянный бонус к доходу.</div>
-    </div>
-  </div>
-
-  <div class="space"></div>
-
+  
   <div class="card">
-    <div class="row" style="justify-content:space-between">
-      <b>Магазин</b>
-      <span class="muted" style="font-size:13px">Автосохранение</span>
+    <div class="row" style="justify-content:space-between;align-items:flex-end">
+      <div>
+        <b>Статистика</b>
+        <div class="muted" style="font-size:13px;margin-top:4px">Твои основные показатели</div>
+      </div>
     </div>
+
+    <div class="statsGrid">
+      <div class="statBox">
+        <div class="muted" style="font-size:13px">Кликов</div>
+        <div class="statVal" id="statClicks">0</div>
+      </div>
+      <div class="statBox">
+        <div class="muted" style="font-size:13px">Всего заработано</div>
+        <div class="statVal" id="statEarned">0</div>
+      </div>
+      <div class="statBox">
+        <div class="muted" style="font-size:13px">Монеты сейчас</div>
+        <div class="statVal" id="statCoins">0</div>
+      </div>
+      <div class="statBox">
+        <div class="muted" style="font-size:13px">Доход/сек</div>
+        <div class="statVal" id="statRate">0</div>
+      </div>
+    </div>
+
     <div class="space"></div>
-    <div class="grid" id="shop"></div>
+    <div class="muted statsBig" id="stats">—</div>
   </div>
 
-  <div class="space"></div>
-
-  <div class="split">
-    <div class="card">
-      <div class="row" style="justify-content:space-between">
-        <b>Статистика</b>
-</div>
-      <div class="space"></div>
-      <div class="muted" id="stats">—</div>
-    </div>
+  </div>
 
 </div>
 
@@ -463,6 +455,9 @@ elHello.textContent = `Привет, ${userName}`;
       }
     };
     const r = await fetch(`/api/progress`, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify(payload) });
+    return await r.json();
+  };
+    const r = await fetch(`/api/leaderboard`, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify(payload) });
     return await r.json();
   };
 
