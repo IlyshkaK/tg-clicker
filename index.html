@@ -163,8 +163,8 @@
 
   const user = tg?.initDataUnsafe?.user;
   const userId = user?.id ? String(user.id) : "local";
-  const userName = user?.username ? "@"+user.username : (user?.first_name || "игрок");
-  elHello.textContent = `привет ${userName}`;
+  const userName = user?.username ? "@"+user.username : (user?.first_name || "Игрок");
+  elHello.textContent = `Привет, ${userName}`;
 
   const initData = tg?.initData || "";
 
@@ -463,8 +463,7 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       quickSave(reason || "debounced");
-      showToast("Автосохранение ✅");
-    }, 650);
+      }, 650);
   };
 
   const initialSync = async () => {
@@ -495,6 +494,7 @@
   }, 1000);
 
   setInterval(() => quickSave("periodic"), 12000);
+  setInterval(() => refreshLeaderboard(), 10 * 60 * 1000);
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) quickSave("hide");
