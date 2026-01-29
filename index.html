@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+  <title>TG Clicker</title>
+  <style>
+    :root { color-scheme: dark; }
+    html,body{margin:0;height:100%;background:#0f0f12;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    .wrap{max-width:460px;margin:0 auto;padding:16px 14px 110px}
+    .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:14px 14px;box-shadow:0 18px 60px rgba(0,0,0,.35)}
+    .row{display:flex;gap:12px;align-items:center}
+    .space{height:12px}
+    .big{font-size:28px;font-weight:800;letter-spacing:.2px}
+    .muted{opacity:.75}
+    .coinBtn{
+      width:200px;height:200px;margin:14px auto 0;
+      border-radius:24px;border:1px solid rgba(255,255,255,.10);
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      display:flex;align-items:center;justify-content:center;
+      user-select:none; -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .coinImg{width:110px;height:110px;image-rendering:pixelated;filter: drop-shadow(0 14px 18px rgba(0,0,0,.35))}
+    .coinBtn:active{transform: translateY(1px) scale(.99)}
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.2);font-size:13px}
+    .grid{display:grid;grid-template-columns:1fr;gap:10px}
+    .shopItem{display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .shopItem b{font-size:15px}
+    .btn{
+      padding:10px 12px;border-radius:14px;border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.06);color:#fff;font-weight:700;cursor:pointer;
+      user-select:none; -webkit-tap-highlight-color: transparent;
+    }
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+    .footer{
+      position:fixed;left:0;right:0;bottom:0;padding:12px 14px;
+      background:rgba(15,15,18,.82);backdrop-filter: blur(10px);border-top:1px solid rgba(255,255,255,.08)
+    }
+    .footerInner{max-width:460px;margin:0 auto;display:flex;gap:10px;justify-content:space-between;align-items:center}
+    .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:90px;background:rgba(0,0,0,.65);
+      border:1px solid rgba(255,255,255,.10);padding:10px 12px;border-radius:14px;font-size:13px;opacity:0;transition:opacity .18s}
+    .toast.show{opacity:1}
+  </style>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <div class="muted" id="hello">Привет!</div>
+        <div class="big" id="coins">0</div>
+        <div class="muted" id="rate">+0/сек</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+        <div class="pill" id="power">Сила клика: 1</div>
+        <div class="pill" id="autos">Авто: 0</div>
+        <div class="pill" id="mult">Множитель: x1</div>
+      </div>
+    </div>
+
+    <div class="coinBtn" id="tap">
+      <img class="coinImg" src="/assets/coin.png" alt="coin"/>
+    </div>
+    <div class="space"></div>
+    <div class="muted" style="text-align:center">Тапай монету. Прогресс сохраняется.</div>
+  </div>
+
+  <div class="space"></div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <b>Магазин</b>
+      <span class="muted" style="font-size:13px">Покупки сохраняются</span>
+    </div>
+    <div class="space"></div>
+    <div class="grid" id="shop"></div>
+  </div>
+
+  <div class="space"></div>
+
+  <div class="card">
+    <b>Статистика</b>
+    <div class="space"></div>
+    <div class="muted" id="stats">—</div>
+  </div>
+</div>
+
+<div class="footer">
+  <div class="footerInner">
+    <button class="btn" id="btnSave">Сохранить</button>
+    <button class="btn" id="btnReset">Сбросить</button>
+  </div>
+</div>
+
+<div class="toast" id="toast">Сохранено ✅</div>
+
+<script>
+(() => {
+  const tg = window.Telegram?.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
+
+  const STORE_KEY = "tg_clicker_v1";
+  const elCoins = document.getElementById("coins");
+  const elRate  = document.getElementById("rate");
+  const elPower = document.getElementById("power");
+  const elAutos = document.getElementById("autos");
+  const elMult  = document.getElementById("mult");
+  const elHello = document.getElementById("hello");
+  const elShop  = document.getElementById("shop");
+  const elStats = document.getElementById("stats");
+  const elToast = document.getElementById("toast");
+
+  const btnSave = document.getElementById("btnSave");
+  const btnReset = document.getElementById("btnReset");
+  const tap = document.getElementById("tap");
+
+  const user = tg?.initDataUnsafe?.user;
+  const userId = user?.id ? String(user.id) : "local";
+  const userName = user?.username ? "@"+user.username : (user?.first_name || "Игрок");
+  elHello.textContent = `Привет, ${userName}`;
+
+  function now(){ return Date.now(); }
+  function clampInt(n, min, max){ n=Math.floor(Number(n)); if(!Number.isFinite(n)) n=min; return Math.max(min, Math.min(max, n)); }
+
+  const defaultState = () => ({
+    userId,
+    coins: 0,
+    clickPower: 1,
+    autos: 0,
+    mult: 1,
+    totalClicks: 0,
+    totalEarned: 0,
+    lastTs: now()
+  });
+
+  function loadLocal(){
+    try {
+      const s = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+      if (!s) return defaultState();
+      return { ...defaultState(), ...s, userId };
+    } catch { return defaultState(); }
+  }
+
+  function saveLocal(state){
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  }
+
+  let state = loadLocal();
+
+  function getRatePerSec(){ return state.autos * 1 * state.mult; }
+  function clickGain(){ return state.clickPower * state.mult; }
+
+  // Offline earnings
+  function applyOffline(){
+    const dt = Math.max(0, (now() - (state.lastTs || now())) / 1000);
+    const earned = Math.floor(getRatePerSec() * dt);
+    if (earned > 0) {
+      state.coins += earned;
+      state.totalEarned += earned;
+    }
+    state.lastTs = now();
+  }
+
+  function fmt(n){
+    n = Math.floor(Number(n)||0);
+    if (n < 1000) return String(n);
+    if (n < 1e6) return (n/1e3).toFixed(1).replace(/\.0$/,"")+"K";
+    if (n < 1e9) return (n/1e6).toFixed(1).replace(/\.0$/,"")+"M";
+    return (n/1e9).toFixed(1).replace(/\.0$/,"")+"B";
+  }
+
+  const shopItems = [
+    { id: "power", name: "Усилить клик", desc: "+1 к силе клика", price: () => 10 + (state.clickPower-1) * 15 },
+    { id: "auto",  name: "Авто-майнер",  desc: "+1 монета/сек",  price: () => 50 + state.autos * 60 },
+    { id: "mult",  name: "Множитель",    desc: "x2 к доходу",     price: () => 250 * Math.pow(2, Math.max(0, Math.log2(state.mult))) }
+  ];
+
+  function render(){
+    elCoins.textContent = fmt(state.coins);
+    elRate.textContent = `+${fmt(getRatePerSec())}/сек`;
+    elPower.textContent = `Сила клика: ${state.clickPower}`;
+    elAutos.textContent = `Авто: ${state.autos}`;
+    elMult.textContent = `Множитель: x${state.mult}`;
+    elStats.textContent = `Кликов: ${fmt(state.totalClicks)} • Всего заработано: ${fmt(state.totalEarned)} • ID: ${userId}`;
+    renderShop();
+  }
+
+  function renderShop(){
+    elShop.innerHTML = "";
+    for (const it of shopItems) {
+      const price = Math.floor(it.price());
+      const can = state.coins >= price;
+
+      const row = document.createElement("div");
+      row.className = "shopItem";
+      row.innerHTML = `
+        <div style="min-width:0">
+          <b>${it.name}</b>
+          <div class="muted" style="font-size:13px">${it.desc}</div>
+          <div class="muted" style="font-size:13px">Цена: ${fmt(price)}</div>
+        </div>
+        <button class="btn" ${can ? "" : "disabled"}>Купить</button>
+      `;
+      row.querySelector("button").addEventListener("click", () => buy(it.id, price));
+      elShop.appendChild(row);
+    }
+  }
+
+  function buy(id, price){
+    if (state.coins < price) return;
+    state.coins -= price;
+    if (id === "power") state.clickPower += 1;
+    if (id === "auto") state.autos += 1;
+    if (id === "mult") state.mult *= 2;
+    saveLocal(state);
+    render();
+    quickSave();
+  }
+
+  function doTap(){
+    applyOffline();
+    const gain = clickGain();
+    state.coins += gain;
+    state.totalEarned += gain;
+    state.totalClicks += 1;
+    state.lastTs = now();
+    saveLocal(state);
+    render();
+  }
+  tap.addEventListener("pointerdown", (e) => { e.preventDefault(); doTap(); });
+
+  // Toast
+  let toastTimer = null;
+  function showToast(text){
+    elToast.textContent = text;
+    elToast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => elToast.classList.remove("show"), 900);
+  }
+
+  // Server sync (best-effort)
+  async function apiGet(){
+    const r = await fetch(`/api/progress?userId=${encodeURIComponent(userId)}`);
+    return await r.json();
+  }
+  async function apiSet(payload){
+    const r = await fetch(`/api/progress`, {
+      method: "POST",
+      headers: { "content-type":"application/json" },
+      body: JSON.stringify(payload)
+    });
+    return await r.json();
+  }
+
+  async function initialSync(){
+    try {
+      const res = await apiGet();
+      if (res?.ok && res?.state) {
+        const s = res.state;
+        state.coins = Math.max(state.coins, clampInt(s.coins, 0, 1e12));
+        state.clickPower = Math.max(state.clickPower, clampInt(s.clickPower, 1, 1e6));
+        state.autos = Math.max(state.autos, clampInt(s.autos, 0, 1e6));
+        state.mult = Math.max(state.mult, clampInt(s.mult, 1, 1e9));
+        state.totalClicks = Math.max(state.totalClicks, clampInt(s.totalClicks, 0, 1e12));
+        state.totalEarned = Math.max(state.totalEarned, clampInt(s.totalEarned, 0, 1e12));
+        state.lastTs = now();
+        saveLocal(state);
+      }
+    } catch {}
+    render();
+  }
+
+  let saving = false;
+  async function quickSave(){
+    if (saving) return;
+    saving = true;
+    try {
+      await apiSet({
+        userId,
+        state: {
+          coins: Math.floor(state.coins),
+          clickPower: state.clickPower,
+          autos: state.autos,
+          mult: state.mult,
+          totalClicks: Math.floor(state.totalClicks),
+          totalEarned: Math.floor(state.totalEarned),
+          lastTs: state.lastTs
+        }
+      });
+    } catch {}
+    saving = false;
+  }
+
+  btnSave.addEventListener("click", async () => {
+    applyOffline();
+    saveLocal(state);
+    render();
+    await quickSave();
+    showToast("Сохранено ✅");
+  });
+
+  btnReset.addEventListener("click", async () => {
+    if (!confirm("Сбросить прогресс?")) return;
+    state = defaultState();
+    saveLocal(state);
+    render();
+    await quickSave();
+    showToast("Сброшено");
+  });
+
+  // Passive income tick
+  setInterval(() => {
+    if (document.hidden) return;
+    applyOffline();
+    const add = Math.floor(getRatePerSec());
+    if (add > 0) {
+      state.coins += add;
+      state.totalEarned += add;
+      state.lastTs = now();
+      saveLocal(state);
+      render();
+    }
+  }, 1000);
+
+  // Autosave
+  setInterval(() => {
+    applyOffline();
+    saveLocal(state);
+    quickSave();
+  }, 5000);
+
+  // Start
+  applyOffline();
+  render();
+  initialSync();
+})();
+</script>
+</body>
+</html>
