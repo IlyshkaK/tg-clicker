@@ -202,6 +202,25 @@ const btnRefresh = document.getElementById("btnRefresh");
   }
   let state = loadLocal();
 
+// --- Sanitize state (fix old/broken saves) ---
+function asNum(x, def=0){ const n = Number(x); return Number.isFinite(n) ? n : def; }
+function sanitizeState(s){
+  s.coins = Math.max(0, Math.floor(asNum(s.coins, 0)));
+  s.clickPower = Math.max(1, Math.floor(asNum(s.clickPower, 1)));
+  s.autos = Math.max(0, Math.floor(asNum(s.autos, 0)));
+  s.mult = Math.max(1, Math.floor(asNum(s.mult, 1)));        // IMPORTANT: never 0
+  s.prestige = Math.max(0, Math.floor(asNum(s.prestige, 0)));
+  s.dailyStreak = Math.max(0, Math.floor(asNum(s.dailyStreak, 0)));
+  s.lastDailyDay = Math.max(0, Math.floor(asNum(s.lastDailyDay, 0)));
+  s.totalClicks = Math.max(0, Math.floor(asNum(s.totalClicks, 0)));
+  s.totalEarned = Math.max(0, Math.floor(asNum(s.totalEarned, 0)));
+  s.lastTs = Math.max(0, Math.floor(asNum(s.lastTs, now())));
+  return s;
+}
+state = sanitizeState(state);
+saveLocal(state);
+
+
   function prestigeBonus(){
     // +5% per prestige level
     return 1 + state.prestige * 0.05;
@@ -411,8 +430,14 @@ const btnRefresh = document.getElementById("btnRefresh");
   }
 
   async function apiLbGet(){
-    const r = await fetch(`/api/leaderboard?limit=10`);
-    return await r.json();
+    const ac = new AbortController();
+    const t = setTimeout(()=>ac.abort(), 6000);
+    try {
+      const r = await fetch(`/api/leaderboard?limit=10`, { signal: ac.signal });
+      return await r.json();
+    } finally {
+      clearTimeout(t);
+    }
   }
 
   function mergeFromServer(s){
@@ -427,6 +452,7 @@ const btnRefresh = document.getElementById("btnRefresh");
     state.totalClicks = Math.max(state.totalClicks, clampInt(s.totalClicks, 0, 1e12));
     state.totalEarned = Math.max(state.totalEarned, clampInt(s.totalEarned, 0, 1e12));
     state.lastTs = now();
+    state = sanitizeState(state);
     saveLocal(state);
   }
 
@@ -528,11 +554,15 @@ const a = document.createElement("a");
   });
   window.addEventListener("beforeunload", () => {
     applyOffline();
+    state = sanitizeState(state);
     saveLocal(state);
   });
 
   // Leaderboard UI
   async function refreshLeaderboard(){
+    const lbEl = document.getElementById("lb");
+    if (!lbEl) return;
+    lbEl.textContent = "Загрузка…";
     try {
       const res = await apiLbGet();
       if (!res?.ok) throw new Error("bad");
