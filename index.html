@@ -148,12 +148,15 @@
   const elShop  = document.getElementById("shop");
   const elStats = document.getElementById("stats");
   const elToast = document.getElementById("toast");
+  const elLb    = document.getElementById("lb");
 const elDailyInfo = document.getElementById("dailyInfo");
   const btnClaim = document.getElementById("btnClaim");
 
   const elPrestInfo = document.getElementById("prestInfo");
   const btnPrestige = document.getElementById("btnPrestige");
-const tap = document.getElementById("tap");
+
+  const btnRefresh = document.getElementById("btnRefresh");
+  const tap = document.getElementById("tap");
 
   const initData = tg?.initData || "";
 
@@ -170,7 +173,7 @@ function getTgUser(){
 }
 const user = getTgUser();
 const userId = user?.id ? String(user.id) : "local";
-const userName = (user?.first_name || "Игрок");
+const userName = user?.username ? "@"+user.username : (user?.first_name || "Игрок");
 elHello.textContent = `Привет, ${userName}`;
 
   const now = () => Date.now();
@@ -242,9 +245,9 @@ elHello.textContent = `Привет, ${userName}`;
   };
 
   const shopItems = [
-    { id:"power", name:"Усилить клик", desc:"+1 к силе клика", price: () => 100 + (state.clickPower-1) * 160 },
-    { id:"auto",  name:"Авто-майнер",  desc:"+1 монета/сек",  price: () => 800 + state.autos * 900 },
-    { id:"mult",  name:"Множитель",    desc:"x2 к доходу",     price: () => 15000 * Math.pow(2, Math.max(0, Math.log2(state.mult))) },
+    { id:"power", name:"Усилить клик", desc:"+1 к силе клика", price: () => 10 + (state.clickPower-1) * 15 },
+    { id:"auto",  name:"Авто-майнер",  desc:"+1 монета/сек",  price: () => 50 + state.autos * 60 },
+    { id:"mult",  name:"Множитель",    desc:"x2 к доходу",     price: () => 250 * Math.pow(2, Math.max(0, Math.log2(state.mult))) },
   ];
 
   const showToast = (text) => {
@@ -285,7 +288,7 @@ elHello.textContent = `Привет, ${userName}`;
       : `Уже забрано сегодня • Стрик: ${state.dailyStreak}`;
   };
 
-  const prestigeCost = () => Math.floor(75000 * Math.pow(2.35, state.prestige));
+  const prestigeCost = () => Math.floor(5000 * Math.pow(2.0, state.prestige));
   const renderPrestige = () => {
     const cost = prestigeCost();
     btnPrestige.disabled = state.coins < cost;
@@ -392,8 +395,18 @@ elHello.textContent = `Привет, ${userName}`;
     const r = await fetch(`/api/progress`, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify(payload) });
     return await r.json();
   };
+  const apiPostScore = async (score) => {
+    const payload = { userId, name: userName, score, initData };
     const r = await fetch(`/api/leaderboard`, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify(payload) });
     return await r.json();
+  };
+  const apiGetLb = async () => {
+    const ac = new AbortController();
+    const t = setTimeout(()=>ac.abort(), 6000);
+    try {
+      const r = await fetch(`/api/leaderboard?limit=10`, { signal: ac.signal });
+      return await r.json();
+    } finally { clearTimeout(t); }
   };
 
   const mergeFromServer = (s) => {
@@ -411,6 +424,22 @@ elHello.textContent = `Привет, ${userName}`;
     saveLocal(state);
   };
 
+  const refreshLeaderboard = async () => {
+    if (!elLb) return;
+    elLb.textContent = "Загрузка…";
+    try {
+      const res = await apiGetLb();
+      if (!res?.ok) throw new Error("bad");
+      const items = res.items || [];
+      if (!items.length) { elLb.textContent = "Пока пусто 😶"; return; }
+      const lines = items.map((it, i) => `${String(i+1).padStart(2," ")}  ${String(it.name||"Player").slice(0,16).padEnd(16," ")}  ${it.score}`);
+      elLb.textContent = lines.join("\n");
+    } catch {
+      elLb.textContent = "Лидерборд недоступен";
+    }
+  };
+  btnRefresh.addEventListener("click", refreshLeaderboard);
+
   let saving = false;
   let saveQueued = false;
 
@@ -421,6 +450,10 @@ elHello.textContent = `Привет, ${userName}`;
       applyOffline();
       saveLocal(state);
 await apiSetProgress();
+
+      const score = Math.floor(state.totalEarned + state.prestige * 10000);
+      await apiPostScore(score);
+      await refreshLeaderboard();
 } catch {
 } finally {
       saving = false;
@@ -443,6 +476,7 @@ try {
 } catch {
 }
     render();
+    refreshLeaderboard();
   };
 
   setInterval(() => {
@@ -460,6 +494,7 @@ try {
   }, 1000);
 
   setInterval(() => quickSave("periodic"), 12000);
+  setInterval(() => refreshLeaderboard(), 10 * 60 * 1000);
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) quickSave("hide");
