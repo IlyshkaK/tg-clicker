@@ -1,6 +1,10 @@
 // api/progress.js
 // Progress API for Vercel.
-// Memory mode works instantly (may reset). Enable Supabase for persistence.
+// - Memory mode works instantly (may reset).
+// - Enable Supabase for persistence.
+// - Optional anti-cheat: set TELEGRAM_BOT_TOKEN env var to verify initData.
+
+import { verifyInitData } from "./_tg_verify.js";
 
 let memory = globalThis.__PROGRESS__ ?? (globalThis.__PROGRESS__ = new Map());
 
@@ -22,6 +26,9 @@ function sanitizeState(s) {
     clickPower: clampInt(s.clickPower, 1, 1_000_000),
     autos: clampInt(s.autos, 0, 1_000_000),
     mult: clampInt(s.mult, 1, 1_000_000_000),
+    prestige: clampInt(s.prestige, 0, 1_000_000),
+    dailyStreak: clampInt(s.dailyStreak, 0, 1_000_000),
+    lastDailyDay: clampInt(s.lastDailyDay, 0, 9_999_999_999_999),
     totalClicks: clampInt(s.totalClicks, 0, 1_000_000_000_000),
     totalEarned: clampInt(s.totalEarned, 0, 1_000_000_000_000),
     lastTs: clampInt(s.lastTs, 0, 9_999_999_999_999),
@@ -61,6 +68,11 @@ export default async function handler(req, res) {
       const userId = cleanUserId(body.userId);
       if (!userId) return res.status(400).json({ ok:false, error:"Bad userId" });
 
+      // Optional initData verification
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      const v = verifyInitData(body.initData || "", botToken);
+      if (!v.ok) return res.status(401).json({ ok:false, error: v.error });
+
       const state = sanitizeState(body.state);
 
       const supa = await trySupabase();
@@ -69,11 +81,11 @@ export default async function handler(req, res) {
           .from("progress")
           .upsert({ user_id: userId, state }, { onConflict: "user_id" });
         if (error) throw error;
-        return res.status(200).json({ ok:true, stored:true, mode:"supabase" });
+        return res.status(200).json({ ok:true, stored:true, mode:"supabase", verify: v.mode });
       }
 
       memory.set(userId, state);
-      return res.status(200).json({ ok:true, stored:true, mode:"memory" });
+      return res.status(200).json({ ok:true, stored:true, mode:"memory", verify: v.mode });
     }
 
     res.setHeader("Allow", "GET, POST");

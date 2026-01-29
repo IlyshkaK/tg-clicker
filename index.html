@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
-  <title>TG Clicker</title>
+  <title>TG Clicker+</title>
   <style>
     :root { color-scheme: dark; }
     html,body{margin:0;height:100%;background:#0f0f12;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
-    .wrap{max-width:460px;margin:0 auto;padding:16px 14px 110px}
+    .wrap{max-width:520px;margin:0 auto;padding:16px 14px 110px}
     .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:14px 14px;box-shadow:0 18px 60px rgba(0,0,0,.35)}
     .row{display:flex;gap:12px;align-items:center}
     .space{height:12px}
@@ -23,7 +23,7 @@
     }
     .coinImg{width:110px;height:110px;image-rendering:pixelated;filter: drop-shadow(0 14px 18px rgba(0,0,0,.35))}
     .coinBtn:active{transform: translateY(1px) scale(.99)}
-    .pill{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.2);font-size:13px}
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.2);font-size:13px;white-space:nowrap}
     .grid{display:grid;grid-template-columns:1fr;gap:10px}
     .shopItem{display:flex;justify-content:space-between;align-items:center;gap:10px}
     .shopItem b{font-size:15px}
@@ -37,18 +37,22 @@
       position:fixed;left:0;right:0;bottom:0;padding:12px 14px;
       background:rgba(15,15,18,.82);backdrop-filter: blur(10px);border-top:1px solid rgba(255,255,255,.08)
     }
-    .footerInner{max-width:460px;margin:0 auto;display:flex;gap:10px;justify-content:space-between;align-items:center}
+    .footerInner{max-width:520px;margin:0 auto;display:flex;gap:10px;justify-content:space-between;align-items:center}
     .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:90px;background:rgba(0,0,0,.65);
       border:1px solid rgba(255,255,255,.10);padding:10px 12px;border-radius:14px;font-size:13px;opacity:0;transition:opacity .18s}
     .toast.show{opacity:1}
+    .split{display:grid;grid-template-columns:1fr;gap:10px}
+    @media(min-width:520px){ .split{grid-template-columns:1fr 1fr;} }
+    .leader{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:13px; line-height:1.45}
   </style>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
 <div class="wrap">
+
   <div class="card">
     <div class="row" style="justify-content:space-between">
-      <div>
+      <div style="min-width:0">
         <div class="muted" id="hello">Привет!</div>
         <div class="big" id="coins">0</div>
         <div class="muted" id="rate">+0/сек</div>
@@ -57,6 +61,7 @@
         <div class="pill" id="power">Сила клика: 1</div>
         <div class="pill" id="autos">Авто: 0</div>
         <div class="pill" id="mult">Множитель: x1</div>
+        <div class="pill" id="prest">Престиж: 0 (+0%)</div>
       </div>
     </div>
 
@@ -64,7 +69,39 @@
       <img class="coinImg" src="/assets/coin.png" alt="coin"/>
     </div>
     <div class="space"></div>
-    <div class="muted" style="text-align:center">Тапай монету. Прогресс сохраняется.</div>
+    <div class="muted" style="text-align:center">Тапай монету. Прогресс сохраняется автоматически.</div>
+  </div>
+
+  <div class="space"></div>
+
+  <div class="split">
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <div>
+          <b>Ежедневная награда</b>
+          <div class="muted" style="font-size:13px;margin-top:4px" id="dailyInfo">—</div>
+        </div>
+        <button class="btn" id="btnClaim">Забрать</button>
+      </div>
+      <div class="space"></div>
+      <div class="muted" style="font-size:13px">
+        Чем больше стрик, тем больше награда.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <div>
+          <b>Престиж</b>
+          <div class="muted" style="font-size:13px;margin-top:4px" id="prestInfo">—</div>
+        </div>
+        <button class="btn" id="btnPrestige">Сделать престиж</button>
+      </div>
+      <div class="space"></div>
+      <div class="muted" style="font-size:13px">
+        Престиж сбрасывает апгрейды, но даёт постоянный бонус к доходу.
+      </div>
+    </div>
   </div>
 
   <div class="space"></div>
@@ -72,7 +109,7 @@
   <div class="card">
     <div class="row" style="justify-content:space-between">
       <b>Магазин</b>
-      <span class="muted" style="font-size:13px">Покупки сохраняются</span>
+      <span class="muted" style="font-size:13px">Автосохранение</span>
     </div>
     <div class="space"></div>
     <div class="grid" id="shop"></div>
@@ -80,17 +117,31 @@
 
   <div class="space"></div>
 
-  <div class="card">
-    <b>Статистика</b>
-    <div class="space"></div>
-    <div class="muted" id="stats">—</div>
+  <div class="split">
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <b>Статистика</b>
+        <span class="muted" style="font-size:13px" id="sync">sync…</span>
+      </div>
+      <div class="space"></div>
+      <div class="muted" id="stats">—</div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <b>Лидерборд</b>
+        <button class="btn" id="btnRefresh">Обновить</button>
+      </div>
+      <div class="space"></div>
+      <div class="muted leader" id="lb">Загрузка…</div>
+    </div>
   </div>
 </div>
 
 <div class="footer">
   <div class="footerInner">
-    <button class="btn" id="btnSave">Сохранить</button>
-    <button class="btn" id="btnReset">Сбросить</button>
+    <button class="btn" id="btnSave">Сохранить сейчас</button>
+    <button class="btn" id="btnExport">Экспорт JSON</button>
   </div>
 </div>
 
@@ -101,25 +152,38 @@
   const tg = window.Telegram?.WebApp;
   if (tg) { tg.ready(); tg.expand(); }
 
-  const STORE_KEY = "tg_clicker_v1";
+  const STORE_KEY = "tg_clicker_plus_v1";
+
   const elCoins = document.getElementById("coins");
   const elRate  = document.getElementById("rate");
   const elPower = document.getElementById("power");
   const elAutos = document.getElementById("autos");
   const elMult  = document.getElementById("mult");
+  const elPrest = document.getElementById("prest");
   const elHello = document.getElementById("hello");
   const elShop  = document.getElementById("shop");
   const elStats = document.getElementById("stats");
   const elToast = document.getElementById("toast");
+  const elSync  = document.getElementById("sync");
+
+  const elDailyInfo = document.getElementById("dailyInfo");
+  const btnClaim = document.getElementById("btnClaim");
+
+  const elPrestInfo = document.getElementById("prestInfo");
+  const btnPrestige = document.getElementById("btnPrestige");
 
   const btnSave = document.getElementById("btnSave");
-  const btnReset = document.getElementById("btnReset");
+  const btnExport = document.getElementById("btnExport");
+  const btnRefresh = document.getElementById("btnRefresh");
+
   const tap = document.getElementById("tap");
 
   const user = tg?.initDataUnsafe?.user;
   const userId = user?.id ? String(user.id) : "local";
   const userName = user?.username ? "@"+user.username : (user?.first_name || "Игрок");
   elHello.textContent = `Привет, ${userName}`;
+
+  const initData = tg?.initData || ""; // will be verified server-side if enabled
 
   function now(){ return Date.now(); }
   function clampInt(n, min, max){ n=Math.floor(Number(n)); if(!Number.isFinite(n)) n=min; return Math.max(min, Math.min(max, n)); }
@@ -130,6 +194,9 @@
     clickPower: 1,
     autos: 0,
     mult: 1,
+    prestige: 0,        // prestige level
+    dailyStreak: 0,
+    lastDailyDay: 0,    // day number (UTC) when claimed
     totalClicks: 0,
     totalEarned: 0,
     lastTs: now()
@@ -142,15 +209,25 @@
       return { ...defaultState(), ...s, userId };
     } catch { return defaultState(); }
   }
-
   function saveLocal(state){
     localStorage.setItem(STORE_KEY, JSON.stringify(state));
   }
-
   let state = loadLocal();
 
-  function getRatePerSec(){ return state.autos * 1 * state.mult; }
-  function clickGain(){ return state.clickPower * state.mult; }
+  function prestigeBonus(){
+    // +5% per prestige level
+    return 1 + state.prestige * 0.05;
+  }
+  function getRatePerSec(){
+    return state.autos * 1 * state.mult * prestigeBonus();
+  }
+  function clickGain(){
+    return state.clickPower * state.mult * prestigeBonus();
+  }
+
+  function dayUTC(ts){
+    return Math.floor((ts || now()) / 86400000); // days since epoch (UTC)
+  }
 
   // Offline earnings
   function applyOffline(){
@@ -168,7 +245,8 @@
     if (n < 1000) return String(n);
     if (n < 1e6) return (n/1e3).toFixed(1).replace(/\.0$/,"")+"K";
     if (n < 1e9) return (n/1e6).toFixed(1).replace(/\.0$/,"")+"M";
-    return (n/1e9).toFixed(1).replace(/\.0$/,"")+"B";
+    if (n < 1e12) return (n/1e9).toFixed(1).replace(/\.0$/,"")+"B";
+    return (n/1e12).toFixed(1).replace(/\.0$/,"")+"T";
   }
 
   const shopItems = [
@@ -183,8 +261,13 @@
     elPower.textContent = `Сила клика: ${state.clickPower}`;
     elAutos.textContent = `Авто: ${state.autos}`;
     elMult.textContent = `Множитель: x${state.mult}`;
+    elPrest.textContent = `Престиж: ${state.prestige} (+${Math.floor(state.prestige*5)}%)`;
+
     elStats.textContent = `Кликов: ${fmt(state.totalClicks)} • Всего заработано: ${fmt(state.totalEarned)} • ID: ${userId}`;
+
     renderShop();
+    renderDaily();
+    renderPrestige();
   }
 
   function renderShop(){
@@ -216,9 +299,10 @@
     if (id === "mult") state.mult *= 2;
     saveLocal(state);
     render();
-    quickSave();
+    scheduleSave("buy");
   }
 
+  // Tap
   function doTap(){
     applyOffline();
     const gain = clickGain();
@@ -228,8 +312,83 @@
     state.lastTs = now();
     saveLocal(state);
     render();
+    scheduleSave("tap");
   }
   tap.addEventListener("pointerdown", (e) => { e.preventDefault(); doTap(); });
+
+  // Daily rewards
+  function dailyCanClaim(){
+    const today = dayUTC(now());
+    return state.lastDailyDay !== today;
+  }
+  function dailyAmountFor(streak){
+    // base 50, grows +20 per streak, capped gently
+    return Math.floor(50 + Math.min(30, streak) * 20);
+  }
+  function renderDaily(){
+    const today = dayUTC(now());
+    const can = dailyCanClaim();
+    let streak = state.dailyStreak;
+    // if missed day => streak resets on claim logic, but show info:
+    const missed = (state.lastDailyDay && today - state.lastDailyDay > 1);
+    const nextStreak = can ? (missed ? 1 : Math.max(1, streak + 1)) : streak;
+    const amount = dailyAmountFor(nextStreak);
+    btnClaim.disabled = !can;
+    elDailyInfo.textContent = can
+      ? `Доступно: +${fmt(amount)} • Следующий стрик: ${nextStreak}${missed ? " (пропуск был)" : ""}`
+      : `Уже забрано сегодня • Стрик: ${streak}`;
+  }
+  btnClaim.addEventListener("click", () => {
+    applyOffline();
+    const today = dayUTC(now());
+    if (!dailyCanClaim()) return;
+
+    const missed = (state.lastDailyDay && today - state.lastDailyDay > 1);
+    state.dailyStreak = missed ? 1 : Math.max(1, state.dailyStreak + 1);
+
+    const amount = dailyAmountFor(state.dailyStreak);
+    state.coins += amount;
+    state.totalEarned += amount;
+    state.lastDailyDay = today;
+    saveLocal(state);
+    render();
+    showToast(`Награда: +${fmt(amount)} ✅`);
+    scheduleSave("daily");
+  });
+
+  // Prestige
+  function prestigeCost(){
+    // cost in coins to prestige: grows fast
+    // 5k, 20k, 60k, 150k, ...
+    return Math.floor(5000 * Math.pow(2.0, state.prestige));
+  }
+  function canPrestige(){
+    return state.coins >= prestigeCost();
+  }
+  function renderPrestige(){
+    const cost = prestigeCost();
+    btnPrestige.disabled = !canPrestige();
+    elPrestInfo.textContent = `Стоимость: ${fmt(cost)} • Бонус сейчас: +${Math.floor(state.prestige*5)}% • После: +${Math.floor((state.prestige+1)*5)}%`;
+  }
+  btnPrestige.addEventListener("click", () => {
+    applyOffline();
+    const cost = prestigeCost();
+    if (state.coins < cost) return;
+    if (!confirm(`Сделать престиж за ${fmt(cost)}? Апгрейды сбросятся.`)) return;
+
+    state.coins -= cost;
+    state.prestige += 1;
+
+    // reset upgrades, keep prestige + daily + totals
+    state.clickPower = 1;
+    state.autos = 0;
+    state.mult = 1;
+
+    saveLocal(state);
+    render();
+    showToast("Престиж выполнен ⭐");
+    scheduleSave("prestige");
+  });
 
   // Toast
   let toastTimer = null;
@@ -240,7 +399,7 @@
     toastTimer = setTimeout(() => elToast.classList.remove("show"), 900);
   }
 
-  // Server sync (best-effort)
+  // ---------- Server sync & anti-cheat (initData verified on server) ----------
   async function apiGet(){
     const r = await fetch(`/api/progress?userId=${encodeURIComponent(userId)}`);
     return await r.json();
@@ -254,60 +413,106 @@
     return await r.json();
   }
 
+  async function apiSubmitScore(score){
+    const r = await fetch(`/api/leaderboard`, {
+      method: "POST",
+      headers: { "content-type":"application/json" },
+      body: JSON.stringify({ userId, name: userName, score, initData })
+    });
+    return await r.json();
+  }
+
+  async function apiLbGet(){
+    const r = await fetch(`/api/leaderboard?limit=10`);
+    return await r.json();
+  }
+
+  function mergeFromServer(s){
+    // Merge: take maximums (simple & safe)
+    state.coins = Math.max(state.coins, clampInt(s.coins, 0, 1e12));
+    state.clickPower = Math.max(state.clickPower, clampInt(s.clickPower, 1, 1e6));
+    state.autos = Math.max(state.autos, clampInt(s.autos, 0, 1e6));
+    state.mult = Math.max(state.mult, clampInt(s.mult, 1, 1e9));
+    state.prestige = Math.max(state.prestige, clampInt(s.prestige, 0, 1e6));
+    state.dailyStreak = Math.max(state.dailyStreak, clampInt(s.dailyStreak, 0, 1e6));
+    state.lastDailyDay = Math.max(state.lastDailyDay, clampInt(s.lastDailyDay, 0, 1e12));
+    state.totalClicks = Math.max(state.totalClicks, clampInt(s.totalClicks, 0, 1e12));
+    state.totalEarned = Math.max(state.totalEarned, clampInt(s.totalEarned, 0, 1e12));
+    state.lastTs = now();
+    saveLocal(state);
+  }
+
   async function initialSync(){
+    elSync.textContent = "sync…";
     try {
       const res = await apiGet();
-      if (res?.ok && res?.state) {
-        const s = res.state;
-        state.coins = Math.max(state.coins, clampInt(s.coins, 0, 1e12));
-        state.clickPower = Math.max(state.clickPower, clampInt(s.clickPower, 1, 1e6));
-        state.autos = Math.max(state.autos, clampInt(s.autos, 0, 1e6));
-        state.mult = Math.max(state.mult, clampInt(s.mult, 1, 1e9));
-        state.totalClicks = Math.max(state.totalClicks, clampInt(s.totalClicks, 0, 1e12));
-        state.totalEarned = Math.max(state.totalEarned, clampInt(s.totalEarned, 0, 1e12));
-        state.lastTs = now();
-        saveLocal(state);
-      }
-    } catch {}
+      if (res?.ok && res?.state) mergeFromServer(res.state);
+      elSync.textContent = (res?.mode === "supabase") ? "server: supabase" : "server: memory";
+    } catch {
+      elSync.textContent = "offline";
+    }
     render();
+    refreshLeaderboard();
   }
 
   let saving = false;
-  async function quickSave(){
-    if (saving) return;
+  let saveQueued = false;
+  async function quickSave(reason){
+    if (saving) { saveQueued = true; return; }
     saving = true;
     try {
-      await apiSet({
+      const payload = {
         userId,
+        initData, // optional but enables verification if server configured
         state: {
           coins: Math.floor(state.coins),
           clickPower: state.clickPower,
           autos: state.autos,
           mult: state.mult,
+          prestige: state.prestige,
+          dailyStreak: state.dailyStreak,
+          lastDailyDay: state.lastDailyDay,
           totalClicks: Math.floor(state.totalClicks),
           totalEarned: Math.floor(state.totalEarned),
           lastTs: state.lastTs
         }
-      });
+      };
+      await apiSet(payload);
+
+      // Submit score: use totalEarned + prestige weight (simple)
+      const score = Math.floor(state.totalEarned + state.prestige * 10000);
+      await apiSubmitScore(score);
     } catch {}
     saving = false;
+    if (saveQueued) { saveQueued = false; quickSave("queued"); }
+  }
+
+  let saveTimer = null;
+  function scheduleSave(reason){
+    // debounce saves: batch frequent taps
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      applyOffline();
+      saveLocal(state);
+      quickSave(reason || "debounced");
+      showToast("Автосохранение ✅");
+    }, 600);
   }
 
   btnSave.addEventListener("click", async () => {
     applyOffline();
     saveLocal(state);
-    render();
-    await quickSave();
+    await quickSave("manual");
     showToast("Сохранено ✅");
   });
 
-  btnReset.addEventListener("click", async () => {
-    if (!confirm("Сбросить прогресс?")) return;
-    state = defaultState();
-    saveLocal(state);
-    render();
-    await quickSave();
-    showToast("Сброшено");
+  btnExport.addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "clicker-save.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
   });
 
   // Passive income tick
@@ -321,15 +526,48 @@
       state.lastTs = now();
       saveLocal(state);
       render();
+      // autosave softly
+      scheduleSave("tick");
     }
   }, 1000);
 
-  // Autosave
+  // Hard autosave every 10s
   setInterval(() => {
     applyOffline();
     saveLocal(state);
-    quickSave();
-  }, 5000);
+    quickSave("periodic");
+  }, 10000);
+
+  // Save on hide/close
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      applyOffline();
+      saveLocal(state);
+      quickSave("hide");
+    }
+  });
+  window.addEventListener("beforeunload", () => {
+    applyOffline();
+    saveLocal(state);
+  });
+
+  // Leaderboard UI
+  async function refreshLeaderboard(){
+    try {
+      const res = await apiLbGet();
+      if (!res?.ok) throw new Error("bad");
+      const items = res.items || [];
+      if (!items.length) {
+        document.getElementById("lb").textContent = "Пока пусто 😶";
+        return;
+      }
+      const lines = items.map((it, i) => `${String(i+1).padStart(2," ")}  ${String(it.name||"Player").slice(0,16).padEnd(16," ")}  ${it.score}`);
+      document.getElementById("lb").textContent = lines.join("\n");
+    } catch {
+      document.getElementById("lb").textContent = "Лидерборд недоступен";
+    }
+  }
+  btnRefresh.addEventListener("click", refreshLeaderboard);
 
   // Start
   applyOffline();
