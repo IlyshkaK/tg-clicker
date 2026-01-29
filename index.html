@@ -112,8 +112,7 @@
     <div class="card">
       <div class="row" style="justify-content:space-between">
         <b>Статистика</b>
-        <span class="muted" style="font-size:13px" id="saveHint">—</span>
-      </div>
+</div>
       <div class="space"></div>
       <div class="muted" id="stats">—</div>
     </div>
@@ -150,9 +149,7 @@
   const elStats = document.getElementById("stats");
   const elToast = document.getElementById("toast");
   const elLb    = document.getElementById("lb");
-  const elSaveHint = document.getElementById("saveHint");
-
-  const elDailyInfo = document.getElementById("dailyInfo");
+const elDailyInfo = document.getElementById("dailyInfo");
   const btnClaim = document.getElementById("btnClaim");
 
   const elPrestInfo = document.getElementById("prestInfo");
@@ -161,12 +158,23 @@
   const btnRefresh = document.getElementById("btnRefresh");
   const tap = document.getElementById("tap");
 
-  const user = tg?.initDataUnsafe?.user;
-  const userId = user?.id ? String(user.id) : "local";
-  const userName = user?.username ? "@"+user.username : (user?.first_name || "Игрок");
-  elHello.textContent = `Привет, ${userName}`;
-
   const initData = tg?.initData || "";
+
+// Robust user extraction: initDataUnsafe OR parse initData param "user"
+function getTgUser(){
+  const u = tg?.initDataUnsafe?.user;
+  if (u && (u.username || u.first_name)) return u;
+  try {
+    const params = new URLSearchParams(initData);
+    const userStr = params.get("user");
+    if (userStr) return JSON.parse(userStr);
+  } catch {}
+  return null;
+}
+const user = getTgUser();
+const userId = user?.id ? String(user.id) : "local";
+const userName = user?.username ? "@"+user.username : (user?.first_name || "Игрок");
+elHello.textContent = `Привет, ${userName}`;
 
   const now = () => Date.now();
   const dayUTC = (ts) => Math.floor((ts || now()) / 86400000);
@@ -441,18 +449,13 @@
     try {
       applyOffline();
       saveLocal(state);
-
-      elSaveHint.textContent = "сохраняю…";
-      await apiSetProgress();
+await apiSetProgress();
 
       const score = Math.floor(state.totalEarned + state.prestige * 10000);
       await apiPostScore(score);
       await refreshLeaderboard();
-
-      elSaveHint.textContent = "сохранено";
-    } catch {
-      elSaveHint.textContent = "офлайн";
-    } finally {
+} catch {
+} finally {
       saving = false;
       if (saveQueued) { saveQueued = false; quickSave("queued"); }
     }
@@ -467,14 +470,11 @@
   };
 
   const initialSync = async () => {
-    elSaveHint.textContent = "sync…";
-    try {
+try {
       const res = await apiGetProgress();
       if (res?.ok && res?.state) mergeFromServer(res.state);
-      elSaveHint.textContent = "готово";
-    } catch {
-      elSaveHint.textContent = "офлайн";
-    }
+} catch {
+}
     render();
     refreshLeaderboard();
   };
