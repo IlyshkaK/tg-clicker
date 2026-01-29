@@ -1,18 +1,9 @@
 // api/_tg_verify.js
-// Telegram WebApp initData verification (server-side).
-// Set TELEGRAM_BOT_TOKEN in Vercel environment to enable verification.
-// If token not set, functions will accept requests without verification (dev mode).
-
 import crypto from "crypto";
 
-export function parseInitData(initData) {
-  const params = new URLSearchParams(initData || "");
-  const obj = {};
-  for (const [k,v] of params.entries()) obj[k] = v;
-  return obj;
-}
-
-export function verifyInitData(initData, botToken, maxAgeSeconds = 24*3600) {
+// Telegram WebApp initData verification (server-side).
+// If TELEGRAM_BOT_TOKEN is not set, verification is disabled (dev mode).
+export function verifyInitData(initData, botToken, maxAgeSeconds = 24 * 3600) {
   if (!botToken) return { ok: true, mode: "no-token" };
   if (!initData) return { ok: false, error: "Missing initData" };
 
@@ -22,16 +13,15 @@ export function verifyInitData(initData, botToken, maxAgeSeconds = 24*3600) {
 
   params.delete("hash");
 
-  // check auth_date freshness
   const authDate = Number(params.get("auth_date") || 0);
-  const now = Math.floor(Date.now()/1000);
+  const now = Math.floor(Date.now() / 1000);
   if (!authDate || Math.abs(now - authDate) > maxAgeSeconds) {
     return { ok: false, error: "auth_date expired" };
   }
 
   const dataCheckString = [...params.entries()]
-    .sort(([a],[b]) => a.localeCompare(b))
-    .map(([k,v]) => `${k}=${v}`)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v}`)
     .join("\n");
 
   const secretKey = crypto.createHmac("sha256", "WebAppData").update(botToken).digest();

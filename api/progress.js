@@ -1,9 +1,4 @@
 // api/progress.js
-// Progress API for Vercel.
-// - Memory mode works instantly (may reset).
-// - Enable Supabase for persistence.
-// - Optional anti-cheat: set TELEGRAM_BOT_TOKEN env var to verify initData.
-
 import { verifyInitData } from "./_tg_verify.js";
 
 let memory = globalThis.__PROGRESS__ ?? (globalThis.__PROGRESS__ = new Map());
@@ -37,7 +32,7 @@ function sanitizeState(s) {
 
 async function trySupabase() {
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY; // server-side only
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   const { createClient } = await import("@supabase/supabase-js");
   return createClient(url, key, { auth: { persistSession: false } });
@@ -47,31 +42,29 @@ export default async function handler(req, res) {
   try {
     if (req.method === "GET") {
       const userId = cleanUserId(req.query.userId);
-      if (!userId) return res.status(400).json({ ok:false, error:"Bad userId" });
+      if (!userId) return res.status(400).json({ ok: false, error: "Bad userId" });
 
       const supa = await trySupabase();
       if (supa) {
         const { data, error } = await supa
           .from("progress")
-          .select("state,updated_at")
+          .select("state")
           .eq("user_id", userId)
           .maybeSingle();
         if (error) throw error;
-        return res.status(200).json({ ok:true, state: data?.state ?? null, mode:"supabase" });
+        return res.status(200).json({ ok: true, state: data?.state ?? null, mode: "supabase" });
       }
 
-      return res.status(200).json({ ok:true, state: memory.get(userId) ?? null, mode:"memory" });
+      return res.status(200).json({ ok: true, state: memory.get(userId) ?? null, mode: "memory" });
     }
 
     if (req.method === "POST") {
       const body = req.body ?? {};
       const userId = cleanUserId(body.userId);
-      if (!userId) return res.status(400).json({ ok:false, error:"Bad userId" });
+      if (!userId) return res.status(400).json({ ok: false, error: "Bad userId" });
 
-      // Optional initData verification
-      const botToken = process.env.TELEGRAM_BOT_TOKEN;
-      const v = verifyInitData(body.initData || "", botToken);
-      if (!v.ok) return res.status(401).json({ ok:false, error: v.error });
+      const v = verifyInitData(body.initData || "", process.env.TELEGRAM_BOT_TOKEN);
+      if (!v.ok) return res.status(401).json({ ok: false, error: v.error });
 
       const state = sanitizeState(body.state);
 
@@ -81,16 +74,16 @@ export default async function handler(req, res) {
           .from("progress")
           .upsert({ user_id: userId, state }, { onConflict: "user_id" });
         if (error) throw error;
-        return res.status(200).json({ ok:true, stored:true, mode:"supabase", verify: v.mode });
+        return res.status(200).json({ ok: true, stored: true, mode: "supabase", verify: v.mode });
       }
 
       memory.set(userId, state);
-      return res.status(200).json({ ok:true, stored:true, mode:"memory", verify: v.mode });
+      return res.status(200).json({ ok: true, stored: true, mode: "memory", verify: v.mode });
     }
 
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ ok:false, error:"Method not allowed" });
+    return res.status(405).json({ ok: false, error: "Method not allowed" });
   } catch (e) {
-    return res.status(500).json({ ok:false, error: String(e?.message ?? e) });
+    return res.status(500).json({ ok: false, error: String(e?.message ?? e) });
   }
 }

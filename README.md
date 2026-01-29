@@ -1,28 +1,37 @@
-# TG Clicker+ (Telegram WebApp) — кликер с прогрессом + лидербордом
+# TG Clicker+ FINAL (Telegram WebApp)
 
-## Фичи
-- Кликер + апгрейды (сила клика / авто-майнер / множитель)
-- Оффлайн доход
-- Ежедневные награды со стриком
-- Престиж (постоянный бонус +5% за уровень)
-- Лидерборд
-- Автосохранение:
-  - localStorage (всегда)
-  - `/api/progress` (server sync)
-- Анти-накрутка (опционально): проверка Telegram WebApp `initData` на сервере
+## Как поставить (правильно)
 
-## Деплой на Vercel
-Важно: `index.html` и `assets/` должны быть В КОРНЕ репозитория.
+### 1) GitHub
+Распакуй архив и залей **содержимое папки** в репозиторий так, чтобы в корне были:
+- `index.html`
+- папки `assets/` и `api/`
 
-Проверка:
-- `https://xxx.vercel.app/`
-- `https://xxx.vercel.app/assets/coin.png`
-- `https://xxx.vercel.app/api/health`
-- `https://xxx.vercel.app/api/leaderboard?limit=10`
+Это критично, иначе будут проблемы с ассетами/роутами.
 
-### Включить Supabase (рекомендуется)
-Иначе serverless память может сбрасываться.
-Создай таблицы:
+### 2) Vercel Deploy
+Vercel → New Project → Import GitHub repo → Deploy.
+
+После деплоя возьми ссылку ТОЛЬКО из:
+**Project → Domains → Production Domain**
+Она выглядит как:
+`https://project-name.vercel.app`
+
+⚠️ Не используй ссылки preview / deployment-id — они дают `DEPLOYMENT_NOT_FOUND`.
+
+### 3) Проверка
+Открой:
+- `https://project-name.vercel.app/assets/coin.png` (монета должна открыться)
+- `https://project-name.vercel.app/api/health` (ok:true)
+- `https://project-name.vercel.app/api/leaderboard?limit=10` (json)
+
+### 4) Подключить к твоему старому боту (раннер → кликер)
+В `.env` твоего бота просто замени:
+`WEBAPP_URL=https://project-name.vercel.app`
+и перезапусти бота.
+
+## Supabase (чтобы прогресс и лидерборд не сбрасывались)
+В Supabase создай таблицы:
 
 ```sql
 create table if not exists public.progress (
@@ -35,7 +44,7 @@ create table if not exists public.leaderboard (
   user_id text primary key,
   name text not null,
   score bigint not null,
-  created_at timestamptz not null default now()
+  updated_at timestamptz not null default now()
 );
 
 create index if not exists leaderboard_score_idx on public.leaderboard(score desc);
@@ -43,21 +52,9 @@ create index if not exists leaderboard_score_idx on public.leaderboard(score des
 
 В Vercel → Settings → Environment Variables:
 - `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY` (service_role)
+- `SUPABASE_SERVICE_ROLE_KEY`
 
-## Анти-накрутка (initData verify)
-В Vercel добавь env:
-- `TELEGRAM_BOT_TOKEN` = токен твоего бота (из BotFather)
-
-После этого `/api/progress` и `/api/leaderboard` будут принимать POST **только** с валидным `initData`.
-(Без этого env — работает в dev-режиме и не проверяет.)
-
-## Бот
-В `bot/`:
-1) `.env.example` → `.env`
-2) Заполни `BOT_TOKEN` и `WEBAPP_URL`
-3) Запуск:
-```bash
-pip install -r requirements.txt
-python bot.py
-```
+## Антинакрутка (по желанию)
+В Vercel env добавь:
+- `TELEGRAM_BOT_TOKEN` = токен твоего бота
+Тогда API будет принимать POST только с валидным Telegram initData.
