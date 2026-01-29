@@ -35,7 +35,6 @@
     .btn:disabled{opacity:.45;cursor:not-allowed}
     .split{display:grid;grid-template-columns:1fr;gap:10px}
     @media(min-width:520px){ .split{grid-template-columns:1fr 1fr;} }
-    .leader{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:13px; line-height:1.45; white-space:pre}
     .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;background:rgba(0,0,0,.65);
       border:1px solid rgba(255,255,255,.10);padding:10px 12px;border-radius:14px;font-size:13px;opacity:0;transition:opacity .18s}
     .toast.show{opacity:1}
@@ -124,16 +123,6 @@
       <div class="space"></div>
       <div class="muted" id="stats">—</div>
     </div>
-
-    <div class="card">
-      <div class="row" style="justify-content:space-between">
-        <b>Лидерборд</b>
-        <button class="btn" id="btnRefresh">Обновить</button>
-      </div>
-      <div class="space"></div>
-      <div class="muted leader" id="lb">Загрузка…</div>
-    </div>
-  </div>
 
 </div>
 
@@ -474,9 +463,6 @@ elHello.textContent = `Привет, ${userName}`;
       }
     };
     const r = await fetch(`/api/progress`, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify(payload) });
-    return await r.json();
-  };
-    const r = await fetch(`/api/leaderboard`, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify(payload) });
     return await r.json();
   };
 
