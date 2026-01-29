@@ -39,6 +39,14 @@
     .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;background:rgba(0,0,0,.65);
       border:1px solid rgba(255,255,255,.10);padding:10px 12px;border-radius:14px;font-size:13px;opacity:0;transition:opacity .18s}
     .toast.show{opacity:1}
+    .modalBack{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:18px}
+    .modalBack.show{display:flex}
+    .modal{max-width:420px;width:100%;background:#121218;border:1px solid rgba(255,255,255,.10);border-radius:18px;box-shadow:0 24px 80px rgba(0,0,0,.55);padding:14px}
+    .modalTitle{font-weight:900;font-size:16px;margin:2px 2px 10px}
+    .modalText{opacity:.85;font-size:14px;line-height:1.4;margin:0 2px 14px}
+    .modalBtns{display:flex;gap:10px;justify-content:flex-end}
+    .btn2{padding:10px 12px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#fff;font-weight:800;cursor:pointer}
+    .btn2.primary{background:rgba(255,255,255,.14)}
   </style>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
@@ -131,6 +139,17 @@
 
 <div class="toast" id="toast">Сохранено ✅</div>
 
+<div class="modalBack" id="modalBack" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modalTitle" id="modalTitle">Кликер</div>
+    <div class="modalText" id="modalText">—</div>
+    <div class="modalBtns">
+      <button class="btn2" id="modalCancel">Отмена</button>
+      <button class="btn2 primary" id="modalOk">OK</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (() => {
   const tg = window.Telegram?.WebApp;
@@ -148,15 +167,12 @@
   const elShop  = document.getElementById("shop");
   const elStats = document.getElementById("stats");
   const elToast = document.getElementById("toast");
-  const elLb    = document.getElementById("lb");
 const elDailyInfo = document.getElementById("dailyInfo");
   const btnClaim = document.getElementById("btnClaim");
 
   const elPrestInfo = document.getElementById("prestInfo");
   const btnPrestige = document.getElementById("btnPrestige");
-
-  const btnRefresh = document.getElementById("btnRefresh");
-  const tap = document.getElementById("tap");
+const tap = document.getElementById("tap");
 
   const initData = tg?.initData || "";
 
@@ -173,7 +189,7 @@ function getTgUser(){
 }
 const user = getTgUser();
 const userId = user?.id ? String(user.id) : "local";
-const userName = user?.username ? "@"+user.username : (user?.first_name || "Игрок");
+const userName = (user?.first_name || "Игрок");
 elHello.textContent = `Привет, ${userName}`;
 
   const now = () => Date.now();
@@ -191,7 +207,10 @@ elHello.textContent = `Привет, ${userName}`;
     lastDailyDay: 0,
     totalClicks: 0,
     totalEarned: 0,
-    lastTs: now()
+    lastTs: now(),
+    ver: 2,
+    unit: 10,
+    hasLaunched: false
   });
 
   const loadLocal = () => {
@@ -205,7 +224,19 @@ elHello.textContent = `Привет, ${userName}`;
   const saveLocal = (s) => localStorage.setItem(STORE_KEY, JSON.stringify(s));
 
   const sanitizeState = (s) => {
+    // ver/unit migration: old saves were in whole coins, now we store tenths (unit=10)
+    const ver = Math.floor(asNum(s.ver, 1));
+    const unit = Math.floor(asNum(s.unit, 1));
     s.coins = Math.max(0, Math.floor(asNum(s.coins, 0)));
+    if (ver < 2 || unit !== 10) {
+      // convert whole coins -> tenths
+      s.coins = s.coins * 10;
+      s.unit = 10;
+      s.ver = 2;
+    } else {
+      s.unit = 10;
+      s.ver = 2;
+    }
     s.clickPower = Math.max(1, Math.floor(asNum(s.clickPower, 1)));
     s.autos = Math.max(0, Math.floor(asNum(s.autos, 0)));
     s.mult = Math.max(1, Math.floor(asNum(s.mult, 1)));
@@ -215,6 +246,7 @@ elHello.textContent = `Привет, ${userName}`;
     s.totalClicks = Math.max(0, Math.floor(asNum(s.totalClicks, 0)));
     s.totalEarned = Math.max(0, Math.floor(asNum(s.totalEarned, 0)));
     s.lastTs = Math.max(0, Math.floor(asNum(s.lastTs, now())));
+    s.hasLaunched = Boolean(s.hasLaunched);
     return s;
   };
 
@@ -222,10 +254,21 @@ elHello.textContent = `Привет, ${userName}`;
   saveLocal(state);
 
   const prestigeBonus = () => 1 + state.prestige * 0.05;
-  const ratePerSec = () => state.autos * state.mult * prestigeBonus();
-  const clickGain = () => state.clickPower * state.mult * prestigeBonus();
+  const ratePerSec = () => Math.floor(state.autos * state.mult * prestigeBonus() * 10);
+  const clickGain = () => Math.floor(state.clickPower * state.mult * prestigeBonus() * 5); // 0.5 coin base -> 5 tenths
 
-  const fmt = (n) => {
+  const fmtMoney = (coins10) => {
+    const v = (Number(coins10)||0) / 10;
+    // show one decimal for < 1000, otherwise compact
+    if (v < 1000) return v.toFixed(1).replace(/\.0$/,"");
+    const n = Math.floor(v);
+    if (n < 1e6) return (n/1e3).toFixed(1).replace(/\.0$/,"")+"K";
+    if (n < 1e9) return (n/1e6).toFixed(1).replace(/\.0$/,"")+"M";
+    if (n < 1e12) return (n/1e9).toFixed(1).replace(/\.0$/,"")+"B";
+    return (n/1e12).toFixed(1).replace(/\.0$/,"")+"T";
+  };
+
+  const fmtInt = (n) => {
     n = Math.floor(Number(n)||0);
     if (n < 1000) return String(n);
     if (n < 1e6) return (n/1e3).toFixed(1).replace(/\.0$/,"")+"K";
@@ -234,21 +277,58 @@ elHello.textContent = `Привет, ${userName}`;
     return (n/1e12).toFixed(1).replace(/\.0$/,"")+"T";
   };
 
+  const formatDuration = (sec) => {
+    sec = Math.max(0, Math.floor(sec));
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) return `${h}ч ${m}м`;
+    if (m > 0) return `${m}м ${s}с`;
+    return `${s}с`;
+  };
+
+  let offlineNoticeShown = false;
+
   const applyOffline = () => {
-    const dt = Math.max(0, (now() - (state.lastTs || now())) / 1000);
-    const earned = Math.floor(ratePerSec() * dt);
+    const dtSec = Math.max(0, (now() - (state.lastTs || now())) / 1000);
+    const earned = Math.floor(ratePerSec() * dtSec);
     if (earned > 0) {
       state.coins += earned;
       state.totalEarned += earned;
     }
     state.lastTs = now();
+    return { earned, dtSec };
   };
 
   const shopItems = [
-    { id:"power", name:"Усилить клик", desc:"+1 к силе клика", price: () => 10 + (state.clickPower-1) * 15 },
-    { id:"auto",  name:"Авто-майнер",  desc:"+1 монета/сек",  price: () => 50 + state.autos * 60 },
-    { id:"mult",  name:"Множитель",    desc:"x2 к доходу",     price: () => 250 * Math.pow(2, Math.max(0, Math.log2(state.mult))) },
+    { id:"power", name:"Усилить клик", desc:"+1 к силе клика", price: () => (100 + (state.clickPower-1) * 180) * 10 },
+    { id:"auto",  name:"Авто-майнер",  desc:"+1 монета/сек",  price: () => Math.floor(1200 * Math.pow(1.35, state.autos)) * 10 },
+    { id:"mult",  name:"Множитель",    desc:"x2 к доходу",     price: () => (25000 * Math.pow(2, Math.max(0, Math.log2(state.mult)))) * 10 },
   ];
+
+  const modalBack = document.getElementById("modalBack");
+  const modalTitle = document.getElementById("modalTitle");
+  const modalText  = document.getElementById("modalText");
+  const modalCancel= document.getElementById("modalCancel");
+  const modalOk    = document.getElementById("modalOk");
+
+  const showModal = (title, text, { showCancel=true } = {}) => {
+    return new Promise((resolve) => {
+      modalTitle.textContent = title || "Кликер";
+      modalText.textContent = text || "";
+      modalCancel.style.display = showCancel ? "inline-block" : "none";
+      modalBack.classList.add("show");
+      const close = (val) => {
+        modalBack.classList.remove("show");
+        modalCancel.onclick = null;
+        modalOk.onclick = null;
+        resolve(val);
+      };
+      modalCancel.onclick = () => close(false);
+      modalOk.onclick = () => close(true);
+      modalBack.onclick = (e) => { if (e.target === modalBack) close(false); };
+    });
+  };
 
   const showToast = (text) => {
     elToast.textContent = text;
@@ -268,7 +348,7 @@ elHello.textContent = `Привет, ${userName}`;
         <div style="min-width:0">
           <b>${it.name}</b>
           <div class="muted" style="font-size:13px">${it.desc}</div>
-          <div class="muted" style="font-size:13px">Цена: ${fmt(price)}</div>
+          <div class="muted" style="font-size:13px">Цена: ${fmtMoney(price)}</div>
         </div>
         <button class="btn" ${can ? "" : "disabled"}>Купить</button>`;
       row.querySelector("button").addEventListener("click", () => buy(it.id, price));
@@ -281,29 +361,29 @@ elHello.textContent = `Привет, ${userName}`;
     const can = state.lastDailyDay !== today;
     const missed = (state.lastDailyDay && today - state.lastDailyDay > 1);
     const nextStreak = can ? (missed ? 1 : Math.max(1, state.dailyStreak + 1)) : state.dailyStreak;
-    const amount = Math.floor(50 + Math.min(30, nextStreak) * 20);
+    const amount = Math.floor(10 + Math.min(20, nextStreak) * 5) * 10;
     btnClaim.disabled = !can;
     elDailyInfo.textContent = can
-      ? `Доступно: +${fmt(amount)} • Стрик будет: ${nextStreak}${missed ? " (был пропуск)" : ""}`
+      ? `Доступно: +${fmtMoney(amount)} • Стрик будет: ${nextStreak}${missed ? " (был пропуск)" : ""}`
       : `Уже забрано сегодня • Стрик: ${state.dailyStreak}`;
   };
 
-  const prestigeCost = () => Math.floor(5000 * Math.pow(2.0, state.prestige));
+  const prestigeCost = () => Math.floor(150000 * Math.pow(2.55, state.prestige)) * 10;
   const renderPrestige = () => {
     const cost = prestigeCost();
     btnPrestige.disabled = state.coins < cost;
-    elPrestInfo.textContent = `Стоимость: ${fmt(cost)} • Бонус: +${Math.floor(state.prestige*5)}% → +${Math.floor((state.prestige+1)*5)}%`;
+    elPrestInfo.textContent = `Стоимость: ${fmtMoney(cost)} • Бонус: +${Math.floor(state.prestige*5)}% → +${Math.floor((state.prestige+1)*5)}%`;
   };
 
   const render = () => {
-    elCoins.textContent = fmt(state.coins);
-    elRate.textContent = `+${fmt(ratePerSec())}/сек`;
+    elCoins.textContent = fmtMoney(state.coins);
+    elRate.textContent = `+${fmtMoney(ratePerSec())}/сек`;
     elPower.textContent = `Сила клика: ${state.clickPower}`;
     elAutos.textContent = `Авто: ${state.autos}`;
     elMult.textContent = `Множитель: x${state.mult}`;
     elPrest.textContent = `Престиж: ${state.prestige} (+${Math.floor(state.prestige*5)}%)`;
 
-    elStats.textContent = `Кликов: ${fmt(state.totalClicks)} • Всего заработано: ${fmt(state.totalEarned)}`;
+    elStats.textContent = `Кликов: ${fmtInt(state.totalClicks)} • Всего заработано: ${fmtMoney(state.totalEarned)}`;
     renderShop();
     renderDaily();
     renderPrestige();
@@ -328,22 +408,23 @@ elHello.textContent = `Привет, ${userName}`;
     const missed = (state.lastDailyDay && today - state.lastDailyDay > 1);
     state.dailyStreak = missed ? 1 : Math.max(1, state.dailyStreak + 1);
 
-    const amount = Math.floor(50 + Math.min(30, state.dailyStreak) * 20);
+    const amount = Math.floor(10 + Math.min(20, state.dailyStreak) * 5) * 10;
     state.coins += amount;
     state.totalEarned += amount;
     state.lastDailyDay = today;
 
     saveLocal(state);
     render();
-    showToast(`Награда: +${fmt(amount)} ✅`);
+    showToast(`Награда: +${fmtMoney(amount)} ✅`);
     scheduleSave("daily");
   });
 
-  btnPrestige.addEventListener("click", () => {
+  btnPrestige.addEventListener("click", async () => {
     applyOffline();
     const cost = prestigeCost();
     if (state.coins < cost) return;
-    if (!confirm(`Сделать престиж за ${fmt(cost)}? Апгрейды сбросятся.`)) return;
+    const ok = await showModal("Кликер", `Сделать престиж за ${fmtMoney(cost)}? Апгрейды сбросятся.`, { showCancel:true });
+    if (!ok) return;
 
     state.coins -= cost;
     state.prestige += 1;
@@ -395,18 +476,8 @@ elHello.textContent = `Привет, ${userName}`;
     const r = await fetch(`/api/progress`, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify(payload) });
     return await r.json();
   };
-  const apiPostScore = async (score) => {
-    const payload = { userId, name: userName, score, initData };
     const r = await fetch(`/api/leaderboard`, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify(payload) });
     return await r.json();
-  };
-  const apiGetLb = async () => {
-    const ac = new AbortController();
-    const t = setTimeout(()=>ac.abort(), 6000);
-    try {
-      const r = await fetch(`/api/leaderboard?limit=10`, { signal: ac.signal });
-      return await r.json();
-    } finally { clearTimeout(t); }
   };
 
   const mergeFromServer = (s) => {
@@ -424,22 +495,6 @@ elHello.textContent = `Привет, ${userName}`;
     saveLocal(state);
   };
 
-  const refreshLeaderboard = async () => {
-    if (!elLb) return;
-    elLb.textContent = "Загрузка…";
-    try {
-      const res = await apiGetLb();
-      if (!res?.ok) throw new Error("bad");
-      const items = res.items || [];
-      if (!items.length) { elLb.textContent = "Пока пусто 😶"; return; }
-      const lines = items.map((it, i) => `${String(i+1).padStart(2," ")}  ${String(it.name||"Player").slice(0,16).padEnd(16," ")}  ${it.score}`);
-      elLb.textContent = lines.join("\n");
-    } catch {
-      elLb.textContent = "Лидерборд недоступен";
-    }
-  };
-  btnRefresh.addEventListener("click", refreshLeaderboard);
-
   let saving = false;
   let saveQueued = false;
 
@@ -450,10 +505,6 @@ elHello.textContent = `Привет, ${userName}`;
       applyOffline();
       saveLocal(state);
 await apiSetProgress();
-
-      const score = Math.floor(state.totalEarned + state.prestige * 10000);
-      await apiPostScore(score);
-      await refreshLeaderboard();
 } catch {
 } finally {
       saving = false;
@@ -476,7 +527,6 @@ try {
 } catch {
 }
     render();
-    refreshLeaderboard();
   };
 
   setInterval(() => {
@@ -494,13 +544,21 @@ try {
   }, 1000);
 
   setInterval(() => quickSave("periodic"), 12000);
-  setInterval(() => refreshLeaderboard(), 10 * 60 * 1000);
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) quickSave("hide");
   });
 
-  applyOffline();
+  const off = applyOffline();
+  // First launch: do not show anything. Next launches: show offline income + time away.
+  if (state.hasLaunched && !offlineNoticeShown && off.dtSec >= 5 && off.earned > 0) {
+    offlineNoticeShown = true;
+    // fire and forget
+    showModal("Кликер", `Пока тебя не было (${formatDuration(off.dtSec)}) ты заработал: ${fmtMoney(off.earned)}`, { showCancel: false });
+  }
+  state.hasLaunched = true;
+  saveLocal(state);
+
   render();
   initialSync();
 })();

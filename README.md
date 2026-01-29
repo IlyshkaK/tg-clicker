@@ -23,14 +23,13 @@ Vercel → New Project → Import GitHub repo → Deploy.
 Открой:
 - `https://project-name.vercel.app/assets/coin.png` (монета должна открыться)
 - `https://project-name.vercel.app/api/health` (ok:true)
-- `https://project-name.vercel.app/api/leaderboard?limit=10` (json)
 
 ### 4) Подключить к твоему старому боту (раннер → кликер)
 В `.env` твоего бота просто замени:
 `WEBAPP_URL=https://project-name.vercel.app`
 и перезапусти бота.
 
-## Supabase (чтобы прогресс и лидерборд не сбрасывались)
+## Supabase (чтобы прогресс не сбрасывался)
 В Supabase создай таблицы:
 
 ```sql
@@ -40,14 +39,6 @@ create table if not exists public.progress (
   updated_at timestamptz not null default now()
 );
 
-create table if not exists public.leaderboard (
-  user_id text primary key,
-  name text not null,
-  score bigint not null,
-  updated_at timestamptz not null default now()
-);
-
-create index if not exists leaderboard_score_idx on public.leaderboard(score desc);
 ```
 
 В Vercel → Settings → Environment Variables:
